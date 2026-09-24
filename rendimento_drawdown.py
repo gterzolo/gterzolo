@@ -9,11 +9,20 @@ Metriche calcolate:
   - Drawdown massimo: la massima perdita da un massimo a un minimo successivo
   - Anno migliore e anno peggiore (rendimento per anno solare)
 
+Simulazione "fuori dal mercato" (--fuori FILE):
+  il file elenca gli intervalli in cui si è liquidi, uno per riga, nel
+  formato  GG/MM/AAAA - GG/MM/AAAA  (righe vuote e che iniziano con # ignorate).
+  Si vende alla chiusura della data di inizio e si rientra alla chiusura della
+  data di fine: nei giorni intermedi il rendimento è zero (liquidità senza
+  interessi, nessun costo di transazione). Le metriche sono calcolate sia
+  sulla strategia sia sul semplice buy & hold, per confronto.
+
 Uso:
     pip install yfinance pandas
     python rendimento_drawdown.py                      # S&P 500, Dow Jones e Nasdaq
     python rendimento_drawdown.py AAPL ^FTSEMIB.MI     # ticker a scelta
     python rendimento_drawdown.py ^DJI --anni 20
+    python rendimento_drawdown.py --dal 14/04/2005 --fuori intervalli_fuori.txt
 """
 
 import argparse
@@ -23,10 +32,32 @@ import pandas as pd
 import yfinance as yf
 
 
-def scarica_prezzi(ticker: str, anni: int) -> pd.Series:
+def leggi_data(testo: str) -> pd.Timestamp:
+    return pd.to_datetime(testo.strip(), format="%d/%m/%Y")
+
+
+def leggi_intervalli(percorso: str) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    """Legge gli intervalli 'GG/MM/AAAA - GG/MM/AAAA' da un file di testo."""
+    intervalli = []
+    with open(percorso, encoding="utf-8") as f:
+        for n, riga in enumerate(f, 1):
+            riga = riga.split("#")[0].strip()
+            if not riga:
+                continue
+            try:
+                inizio, fine = (leggi_data(p) for p in riga.split("-"))
+            except ValueError:
+                raise SystemExit(f"{percorso}:{n}: formato non valido, "
+                                 f"atteso 'GG/MM/AAAA - GG/MM/AAAA': {riga!r}")
+            if fine < inizio:
+                raise SystemExit(f"{percorso}:{n}: la data di fine precede l'inizio")
+            intervalli.append((inizio, fine))
+    return sorted(intervalli)
+
+
+def scarica_prezzi(ticker: str, inizio: pd.Timestamp) -> pd.Series:
     """Scarica i prezzi di chiusura (rettificati per dividendi e split)."""
     oggi = pd.Timestamp(date.today())
-    inizio = oggi - pd.DateOffset(years=anni)
     dati = yf.download(ticker, start=inizio, end=oggi + pd.Timedelta(days=1),
                        auto_adjust=True, progress=False)
     if dati.empty:
@@ -35,6 +66,21 @@ def scarica_prezzi(ticker: str, anni: int) -> pd.Series:
     if isinstance(prezzi, pd.DataFrame):
         prezzi = prezzi.iloc[:, 0]
     return prezzi.dropna()
+
+
+def applica_uscite(prezzi: pd.Series, intervalli) -> tuple[pd.Series, float]:
+    """
+    Curva del capitale di chi è fuori dal mercato negli intervalli dati
+    (rendimento zero da inizio escluso a fine inclusa). Restituisce la curva
+    (stessa scala dei prezzi) e la quota di giorni investiti.
+    """
+    rendimenti = prezzi.pct_change().fillna(0)
+    fuori = pd.Series(False, index=prezzi.index)
+    for inizio, fine in intervalli:
+        fuori |= (prezzi.index > inizio) & (prezzi.index <= fine)
+    rendimenti[fuori] = 0.0
+    curva = prezzi.iloc[0] * (1 + rendimenti).cumprod()
+    return curva, 1 - fuori.iloc[1:].mean()
 
 
 def drawdown_massimo(prezzi: pd.Series) -> dict:
@@ -75,8 +121,7 @@ def rendimenti_annuali(prezzi: pd.Series) -> pd.Series:
     return pd.concat([inizio, fine_anno]).pct_change().dropna()
 
 
-def analizza(ticker: str, anni: int) -> None:
-    prezzi = scarica_prezzi(ticker, anni)
+def stampa_metriche(titolo: str, prezzi: pd.Series) -> None:
     inizio, fine = prezzi.index[0], prezzi.index[-1]
     durata_anni = (fine - inizio).days / 365.25
 
@@ -87,7 +132,7 @@ def analizza(ticker: str, anni: int) -> None:
     annuali = rendimenti_annuali(prezzi)
 
     f = lambda d: d.strftime("%d/%m/%Y")
-    print(f"\n=== {ticker}  ({f(inizio)} - {f(fine)}, {durata_anni:.1f} anni) ===")
+    print(f"\n=== {titolo}  ({f(inizio)} - {f(fine)}, {durata_anni:.1f} anni) ===")
     print(f"Rendimento totale:     {totale:+.2%}")
     print(f"CAGR (annuo composto): {cagr:+.2%}")
     print(f"Rendimento massimo:    {ru['valore']:+.2%}  "
@@ -100,6 +145,17 @@ def analizza(ticker: str, anni: int) -> None:
     print(f"Anno peggiore:         {annuali.idxmin()}  {annuali.min():+.2%}")
 
 
+def analizza(ticker: str, inizio: pd.Timestamp, intervalli) -> None:
+    prezzi = scarica_prezzi(ticker, inizio)
+    if not intervalli:
+        stampa_metriche(ticker, prezzi)
+        return
+    curva, investito = applica_uscite(prezzi, intervalli)
+    stampa_metriche(f"{ticker} - buy & hold", prezzi)
+    stampa_metriche(f"{ticker} - con uscite dal mercato", curva)
+    print(f"Tempo investito:       {investito:.1%} dei giorni di borsa")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -107,11 +163,18 @@ def main() -> None:
                         help="Ticker Yahoo Finance (default: ^GSPC ^DJI ^IXIC)")
     parser.add_argument("--anni", type=int, default=30,
                         help="Numero di anni da analizzare (default: 30)")
+    parser.add_argument("--dal", type=leggi_data,
+                        help="Data di inizio GG/MM/AAAA (sostituisce --anni)")
+    parser.add_argument("--fuori", metavar="FILE",
+                        help="File con gli intervalli fuori dal mercato")
     args = parser.parse_args()
+
+    inizio = args.dal or pd.Timestamp(date.today()) - pd.DateOffset(years=args.anni)
+    intervalli = leggi_intervalli(args.fuori) if args.fuori else []
 
     for t in args.ticker:
         try:
-            analizza(t, args.anni)
+            analizza(t, inizio, intervalli)
         except ValueError as e:
             print(f"\n{e}")
 

@@ -1,0 +1,5 @@
+# Intervalli in cui si è fuori dal mercato (liquidità), uno per riga:
+#   GG/MM/AAAA - GG/MM/AAAA
+# Si vende alla chiusura del giorno di inizio e si rientra alla chiusura del giorno di fine.
+# Esempio:
+# 15/01/2008 - 31/03/2009

@@ -11,7 +11,7 @@ Metriche calcolate:
 
 Uso:
     pip install yfinance pandas
-    python rendimento_drawdown.py                      # S&P 500 e Dow Jones
+    python rendimento_drawdown.py                      # S&P 500, Dow Jones e Nasdaq
     python rendimento_drawdown.py AAPL ^FTSEMIB.MI     # ticker a scelta
     python rendimento_drawdown.py ^DJI --anni 20
 """
@@ -103,8 +103,8 @@ def analizza(ticker: str, anni: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("ticker", nargs="*", default=["^GSPC", "^DJI"],
-                        help="Ticker Yahoo Finance (default: ^GSPC ^DJI)")
+    parser.add_argument("ticker", nargs="*", default=["^GSPC", "^DJI", "^IXIC"],
+                        help="Ticker Yahoo Finance (default: ^GSPC ^DJI ^IXIC)")
     parser.add_argument("--anni", type=int, default=30,
                         help="Numero di anni da analizzare (default: 30)")
     args = parser.parse_args()

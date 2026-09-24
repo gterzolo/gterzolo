@@ -1,5 +1,30 @@
-# Intervalli in cui si è fuori dal mercato (liquidità), uno per riga:
-#   GG/MM/AAAA - GG/MM/AAAA
+# Intervalli in cui si è fuori dal mercato (liquidità), uno per riga,
+# con date GG/MM/AAAA o AAAA-MM-GG.
 # Si vende alla chiusura del giorno di inizio e si rientra alla chiusura del giorno di fine.
-# Esempio:
-# 15/01/2008 - 31/03/2009
+# Le righe commentate "investito" sono i periodi di mercato tra un'uscita e l'altra.
+da 2006-07-13 a 2006-09-07
+# investito: da 2006-09-08 a 2007-06-20
+da 2007-06-21 a 2009-05-21
+# investito: da 2009-05-22 a 2011-06-15
+da 2011-06-16 a 2012-02-09
+# investito: da 2012-02-10 a 2012-05-23
+da 2012-05-24 a 2012-07-19
+# investito: da 2012-07-20 a 2014-10-01
+da 2014-10-02 a 2015-03-05
+# investito: da 2015-03-06 a 2015-06-17
+da 2015-06-18 a 2016-04-21
+# investito: da 2016-04-22 a 2018-02-28
+da 2018-03-01 a 2018-08-30
+# investito: da 2018-08-31 a 2018-10-10
+da 2018-10-11 a 2019-03-14
+# investito: da 2019-03-15 a 2020-03-11
+da 2020-03-12 a 2020-08-13
+# investito: da 2020-08-14 a 2021-11-24
+da 2021-11-25 a 2023-01-12
+# investito: da 2023-01-13 a 2023-05-03
+da 2023-05-04 a 2023-06-08
+# investito: da 2023-06-09 a 2023-10-11
+da 2023-10-12 a 2023-11-16
+# investito: da 2023-11-17 a 2025-03-21
+da 2025-03-24 a 2025-05-26
+da 2026-03-20 a 17/4/2026

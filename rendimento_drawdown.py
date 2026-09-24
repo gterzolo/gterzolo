@@ -10,8 +10,9 @@ Metriche calcolate:
   - Anno migliore e anno peggiore (rendimento per anno solare)
 
 Simulazione "fuori dal mercato" (--fuori FILE):
-  il file elenca gli intervalli in cui si è liquidi, uno per riga, nel
-  formato  GG/MM/AAAA - GG/MM/AAAA  (righe vuote e che iniziano con # ignorate).
+  il file elenca gli intervalli in cui si è liquidi, uno per riga, con due
+  date GG/MM/AAAA o AAAA-MM-GG (es. "da 2006-07-13 a 2006-09-07");
+  il testo dopo # e le righe vuote sono ignorati.
   Si vende alla chiusura della data di inizio e si rientra alla chiusura della
   data di fine: nei giorni intermedi il rendimento è zero (liquidità senza
   interessi, nessun costo di transazione). Le metriche sono calcolate sia
@@ -26,29 +27,43 @@ Uso:
 """
 
 import argparse
+import re
 from datetime import date
 
 import pandas as pd
 import yfinance as yf
 
 
+FORMATI_DATA = ("%d/%m/%Y", "%Y-%m-%d")
+REGEX_DATA = re.compile(r"\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}/\d{4}")
+
+
 def leggi_data(testo: str) -> pd.Timestamp:
-    return pd.to_datetime(testo.strip(), format="%d/%m/%Y")
+    """Accetta GG/MM/AAAA oppure AAAA-MM-GG."""
+    for formato in FORMATI_DATA:
+        try:
+            return pd.to_datetime(testo.strip(), format=formato)
+        except ValueError:
+            pass
+    raise ValueError(f"data non valida: {testo!r}")
 
 
 def leggi_intervalli(percorso: str) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
-    """Legge gli intervalli 'GG/MM/AAAA - GG/MM/AAAA' da un file di testo."""
+    """Legge un intervallo per riga: le prime due date trovate sono inizio e fine."""
     intervalli = []
     with open(percorso, encoding="utf-8") as f:
         for n, riga in enumerate(f, 1):
             riga = riga.split("#")[0].strip()
             if not riga:
                 continue
+            date_riga = REGEX_DATA.findall(riga)
+            if len(date_riga) != 2:
+                raise SystemExit(f"{percorso}:{n}: servono due date "
+                                 f"(GG/MM/AAAA o AAAA-MM-GG): {riga!r}")
             try:
-                inizio, fine = (leggi_data(p) for p in riga.split("-"))
-            except ValueError:
-                raise SystemExit(f"{percorso}:{n}: formato non valido, "
-                                 f"atteso 'GG/MM/AAAA - GG/MM/AAAA': {riga!r}")
+                inizio, fine = (leggi_data(d) for d in date_riga)
+            except ValueError as e:
+                raise SystemExit(f"{percorso}:{n}: {e}")
             if fine < inizio:
                 raise SystemExit(f"{percorso}:{n}: la data di fine precede l'inizio")
             intervalli.append((inizio, fine))

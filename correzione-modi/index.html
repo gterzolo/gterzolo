@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Correzione modi</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Correzione modi</h1>
+    <p class="sub">Correzione attiva della stanza multi-diffusore (stile ART) per CamillaDSP</p>
+  </header>
+
+  <main>
+    <section class="card" id="sec-config">
+      <h2><span class="step">1</span> Impianto</h2>
+      <div class="grid">
+        <label>Subwoofer
+          <select id="cfg-subs"><option value="1">1</option><option value="2" selected>2</option></select>
+        </label>
+        <label>Posizioni di misura
+          <input id="cfg-pos" type="number" min="1" max="9" value="5" />
+        </label>
+        <label>Livello sweep (dBFS)
+          <input id="cfg-level" type="number" min="-40" max="-3" value="-15" />
+        </label>
+        <label>Durata sweep (s)
+          <input id="cfg-sweep" type="number" min="1" max="15" step="0.5" value="5" />
+        </label>
+        <label class="wide">Microfono
+          <select id="cfg-mic"><option value="">Predefinito di sistema</option></select>
+        </label>
+        <label class="wide">Calibrazione microfono (.txt)
+          <input id="cfg-cal" type="file" accept=".txt,.cal,.frd" />
+        </label>
+      </div>
+      <p class="hint">Le uscite seguono l'ordine dei canali dell'interfaccia audio: <span id="cfg-outputs"></span>.
+        Misura la posizione 1 nel punto d'ascolto principale, le altre entro circa 50 cm, ad altezze leggermente diverse.</p>
+    </section>
+
+    <section class="card" id="sec-measure">
+      <h2><span class="step">2</span> Misure</h2>
+      <div class="row">
+        <button id="btn-audio">Attiva audio e microfono</button>
+        <button id="btn-demo" class="secondary">Carica stanza demo (simulata)</button>
+        <label class="button secondary">Importa WAV…
+          <input id="imp-wav" type="file" accept=".wav" multiple hidden />
+        </label>
+        <span id="audio-status" class="status"></span>
+      </div>
+      <p class="hint">Importazione: nomi del tipo <code>p1_L.wav</code>, <code>p2_SW1.wav</code> (risposte all'impulso esportate, ad esempio, da REW a 48 kHz).</p>
+      <div class="table-wrap"><table id="meas-table"></table></div>
+    </section>
+
+    <section class="card" id="sec-params">
+      <h2><span class="step">3</span> Target e correzione</h2>
+      <div class="grid">
+        <label>Esaltazione bassi (dB)<input id="p-boost" type="number" step="0.5" value="4" /></label>
+        <label>Frequenza scaffale (Hz)<input id="p-corner" type="number" value="120" /></label>
+        <label>Pendenza (dB/ott)<input id="p-tilt" type="number" step="0.1" value="-0.5" /></label>
+        <label>Taglio infrabassi (Hz)<input id="p-lowcut" type="number" value="18" /></label>
+        <label>Limite ART (Hz)<input id="p-art" type="number" value="150" /></label>
+        <label>Limite correzione (Hz)<input id="p-corr" type="number" value="500" /></label>
+        <label>Boost massimo (dB)<input id="p-maxboost" type="number" step="0.5" value="6" /></label>
+        <label>Limite basso diffusori (Hz)<input id="p-mainlow" type="number" value="45" /></label>
+        <label>Ritardo di modellazione (ms)<input id="p-delay" type="number" value="25" /></label>
+        <label>Regolarizzazione<input id="p-reg" type="number" step="0.01" value="0.02" /></label>
+        <label>Lunghezza FIR
+          <select id="p-fir"><option>32768</option><option selected>65536</option><option>131072</option></select>
+        </label>
+      </div>
+      <div class="row">
+        <button id="btn-compute" disabled>Calcola filtri</button>
+        <span id="compute-status" class="status"></span>
+      </div>
+    </section>
+
+    <section class="card" id="sec-results" hidden>
+      <h2><span class="step">4</span> Risultati</h2>
+      <div class="row">
+        <label>Canale <select id="r-ch"></select></label>
+        <label>Posizione <select id="r-pos"></select></label>
+        <span id="r-metrics" class="metrics"></span>
+      </div>
+      <h3>Risposta in frequenza</h3>
+      <canvas id="plot-freq" class="plot"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--before)"></i>Prima</span>
+        <span><i style="background:var(--after)"></i>Dopo (previsto)</span>
+        <span><i style="background:var(--verify)"></i>Dopo (misurato)</span>
+        <span><i class="dash" style="border-color:var(--target)"></i>Target</span>
+      </div>
+      <h3>Decadimento dei bassi (curva energia-tempo, passa-basso, 0 dB = picco di ogni curva)</h3>
+      <canvas id="plot-etc" class="plot"></canvas>
+      <div class="row">
+        <button id="btn-verify" class="secondary" disabled>Verifica con una misura</button>
+        <span id="verify-status" class="status"></span>
+      </div>
+    </section>
+
+    <section class="card" id="sec-export" hidden>
+      <h2><span class="step">5</span> Esporta per CamillaDSP</h2>
+      <div class="grid">
+        <label class="wide">Dispositivo di cattura<input id="x-cap" value="hw:Loopback,1" /></label>
+        <label class="wide">Dispositivo di riproduzione<input id="x-play" value="hw:0" /></label>
+        <label>Chunk size<input id="x-chunk" type="number" value="2048" /></label>
+      </div>
+      <div class="row">
+        <button id="btn-export">Scarica ZIP (filtri + config)</button>
+        <span id="export-status" class="status"></span>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

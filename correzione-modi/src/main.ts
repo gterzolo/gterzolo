@@ -131,7 +131,14 @@ $('meas-table').addEventListener('click', (e) => {
 });
 
 $('btn-audio').addEventListener('click', () => runExclusive(async () => {
-  await measurer.open(state.outputs.length, $<HTMLSelectElement>('cfg-mic').value || undefined);
+  try {
+    await measurer.open(state.outputs.length, $<HTMLSelectElement>('cfg-mic').value || undefined);
+  } catch (err) {
+    const msg = (err as Error).message;
+    throw new Error(/permission|denied|not allowed|NotAllowed/i.test(msg) || (err as Error).name === 'NotAllowedError'
+      ? 'Il microfono non è accessibile da questa pagina. Per misurare apri l\'app sul computer (npm run dev); qui puoi usare la stanza demo o importare WAV.'
+      : msg);
+  }
   state.live = true;
   const mics = await listMics();
   const sel = $<HTMLSelectElement>('cfg-mic');
@@ -186,7 +193,7 @@ $<HTMLInputElement>('cfg-cal').addEventListener('change', async (e) => {
     invalidate();
   } catch (err) {
     state.micCal = undefined;
-    alert((err as Error).message);
+    setStatus('audio-status', `Calibrazione: ${(err as Error).message}`, 'err');
   }
 });
 
@@ -296,7 +303,7 @@ $('btn-verify').addEventListener('click', () => runExclusive(async () => {
   setStatus('verify-status', 'Misura di verifica sovrapposta in arancione.', 'ok');
 }, 'verify-status'));
 
-$('btn-export').addEventListener('click', () => {
+$('btn-export').addEventListener('click', async () => {
   const r = state.result;
   if (!r) return;
   const enc = new TextEncoder();
@@ -313,14 +320,30 @@ $('btn-export').addEventListener('click', () => {
     })),
   });
   files.push({ name: 'LEGGIMI.txt', data: enc.encode(readme(r)) });
-  const blob = new Blob([makeZip(files)], { type: 'application/zip' });
+  const zip = makeZip(files);
+  const name = 'correzione-art-camilladsp.zip';
+  // Dentro claude.ai i download passano dal capability "downloads"; altrove si usa un link normale.
+  const claude = (window as unknown as { claude?: { use(n: string): Promise<SaveApi | null> } }).claude;
+  const downloads = claude ? await claude.use('downloads') : null;
+  if (downloads) {
+    try {
+      await downloads.save({ filename: name, data: new Blob([zip]) });
+      setStatus('export-status', `${files.length} file esportati.`, 'ok');
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      setStatus('export-status', code === 'declined' ? 'Salvataggio annullato.' : 'Il salvataggio non è disponibile qui.', code === 'declined' ? '' : 'err');
+    }
+    return;
+  }
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'correzione-art-camilladsp.zip';
+  a.href = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+  a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   setStatus('export-status', `${files.length} file esportati.`, 'ok');
 });
+
+interface SaveApi { save(r: { filename: string; data: Blob }): Promise<unknown> }
 
 function readme(r: ArtResult): string {
   return [
